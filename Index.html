@@ -1,0 +1,671 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ripple</title>
+<style>
+:root{--bg:#ececeb;--ink:#161616;--sub:#8b8b8d;--faint:#bdbdbf;--hair:#dcdcdb;--fill:#e2e2e1;--tile:#e3e3e2;--onInk:#f4f4f3;--paper:#ececeb;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#1d1d1f;--ink:#f2f2f2;--sub:#8e8e93;--faint:#55555a;--hair:#303033;--fill:#2a2a2d;--tile:#2a2a2d;--onInk:#1d1d1f;--paper:#1d1d1f;color-scheme:dark}}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;font-size:15px;line-height:1.3;
+  -webkit-font-smoothing:antialiased;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+body{display:flex;flex-direction:column;height:100dvh;padding-top:env(safe-area-inset-top)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px;border-radius:10px}
+[hidden]{display:none!important}
+
+/* top: brand, more button, the one number that matters */
+.top{padding:10px 22px 0}
+.bar{display:flex;justify-content:space-between;align-items:flex-start;padding-top:8px}
+.brand{font-family:ui-serif,"New York",Georgia,"Times New Roman",serif;font-size:28px;font-weight:500;letter-spacing:-.01em;line-height:1.1}
+.sub{font-size:12px;color:var(--sub);margin-top:4px}
+.more{width:34px;height:34px;border-radius:50%;background:var(--tile);display:grid;place-items:center}
+.more svg{width:16px;height:16px}
+.summary{padding-top:18px}
+.num{font-size:46px;font-weight:400;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.num small{font-size:46px;font-weight:400;letter-spacing:-.03em}
+.label{font-size:13px;color:var(--sub);margin-top:6px}
+
+/* stage */
+
+.stagewrap{flex:1;min-height:0;position:relative;display:flex}
+.arrow{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;display:grid;place-items:center;color:var(--ink);z-index:2}
+.arrow svg{width:20px;height:20px}.arrow:active{opacity:.6}
+.arrow.left{left:8px}.arrow.right{right:8px}
+.pager{position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;gap:6px;pointer-events:none}
+.pager i{width:5px;height:5px;border-radius:50%;background:var(--faint)}.pager i.on{background:var(--ink)}
+#stage{flex:1;min-height:0;position:relative;touch-action:none;outline:none;background:transparent}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+/* controls under the device */
+.panel{padding:4px 22px 14px;display:flex;flex-direction:column;gap:12px}
+.hint{font-size:13px;color:var(--sub);text-align:center;min-height:17px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:var(--tile);border-radius:10px;padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px}
+.tile span{font-size:11px;color:var(--sub)}
+.tile b{font-size:16px;font-weight:500;font-variant-numeric:tabular-nums}
+.meter{height:3px;background:var(--hair);border-radius:2px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--ink);transition:width .3s}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.pill{height:38px;padding:0 16px;border-radius:19px;font-size:14px;font-weight:500;display:inline-flex;align-items:center;gap:6px;background:var(--tile)}
+.pill svg{width:12px;height:12px;color:var(--sub)}
+.modes{flex:1;display:flex;background:var(--tile);border-radius:19px;padding:3px;height:38px}
+.modes button{flex:1;border-radius:16px;font-size:14px;font-weight:500;color:var(--sub)}
+.modes button[aria-pressed="true"]{background:var(--ink);color:var(--onInk)}
+.circle{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--tile)}
+.circle svg{width:17px;height:17px}
+.cta{height:50px;border-radius:25px;background:var(--ink);color:var(--onInk);font-size:16px;font-weight:600;width:100%}
+.cta:active,.pill:active,.circle:active{opacity:.7}
+.quiet{font-size:13px;color:var(--sub)}
+#history{display:flex;gap:6px;align-items:center;min-height:24px}
+.glyph{width:24px;height:24px;display:grid;place-items:center;color:var(--faint)}
+.glyph svg{width:14px;height:14px}
+.glyph.latest{color:var(--ink)}
+.empty{font-size:13px;color:var(--sub)}
+
+/* tab bar: thin icons, black when selected */
+.tabs{display:flex;border-top:1px solid var(--hair);background:transparent;padding:6px 6px calc(4px + env(safe-area-inset-bottom))}
+.tabs button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--faint);font-size:10px;font-weight:500}
+.tabs svg{width:24px;height:24px}
+.tabs button[aria-selected="true"]{color:var(--ink)}
+
+input[type=range]{accent-color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.meter i{transition:none}}
+@media (min-width:700px){body{max-width:430px;margin:0 auto;border-left:1px solid var(--hair);border-right:1px solid var(--hair)}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="bar">
+    <div><div class="brand">Ripple</div><div class="sub">Connected<span id="meta" hidden></span></div></div>
+
+  </div>
+  <div class="summary" data-panel="ocean"><div class="num" id="finishName">Stone</div><div class="label">Finish</div></div>
+  <div class="summary" data-panel="smoke" hidden><div class="num"><span id="stickPct">0</span><small>%</small></div><div class="label">Stick remaining</div></div>
+  <div class="summary" data-panel="tap" hidden><div class="num" id="encCount">0</div><div class="label">Encounters</div></div>
+  <div class="summary" data-panel="shake" hidden><div class="num" id="lastDraw">–</div><div class="label">Last draw</div></div>
+</header>
+
+<div class="stagewrap">
+  <div id="stage" tabindex="0" aria-label="Device preview"><canvas id="c"></canvas></div>
+  <button class="arrow left" id="prevFinish" aria-label="Previous finish"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg></button>
+  <button class="arrow right" id="nextFinish" aria-label="Next finish"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l5 5-5 5"/></svg></button>
+  <div class="pager" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
+</div>
+
+<main>
+  <section class="panel" data-panel="ocean">
+    <p class="hint" id="hint" aria-live="polite"></p>
+    <div id="gainRow" class="row" hidden><span class="quiet">Sensitivity</span><input id="gain" type="range" min="1" max="6" step="0.1" value="3.5" style="flex:1" aria-label="Motion sensitivity"></div>
+    <div class="row" style="gap:12px">
+      <div class="modes" role="group" aria-label="Control">
+        <button data-mode="drag" aria-pressed="true">Touch</button><button data-mode="spin" aria-pressed="false">Spin</button><button data-mode="phone" aria-pressed="false">Motion</button>
+      </div>
+      <button class="circle" id="splash" aria-label="Make a splash"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 11c2 0 2-1.6 3.5-1.6S7.5 11 9 11s2-1.6 3.5-1.6S14.5 11 16 11"/><path d="M9 7V2M6 5.5L4.5 3.5M12 5.5l1.5-2"/></svg></button>
+    </div>
+  </section>
+
+  <section class="panel" data-panel="smoke" hidden>
+    <p class="hint" data-mirror="hint"></p>
+    <div class="meter"><i id="stickBar"></i></div>
+    <div class="tiles"><div class="tile"><span>Status</span><b id="sessStatus">No stick</b></div><div class="tile"><span>Puffs</span><b id="puffs">0</b></div></div>
+    <button class="cta" id="stick">Insert stick</button>
+  </section>
+
+  <section class="panel" data-panel="tap" hidden>
+    <p class="hint" data-mirror="hint"></p>
+    <div class="tiles"><div class="tile"><span>Status</span><b id="encStatus">Apart</b></div><div class="tile"><span>Meeting point</span><b>Top edge</b></div></div>
+    <div class="row"><button class="cta" id="bump" style="flex:1">Bring together</button>
+      <button class="circle" id="resetCount" aria-label="Reset count" style="width:50px;height:50px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3.5 9a5.5 5.5 0 1 0 1.6-3.9"/><path d="M3 2.5v3h3"/></svg></button></div>
+  </section>
+
+  <section class="panel" data-panel="shake" hidden>
+    <p class="hint" data-mirror="hint"></p>
+    <div class="tiles"><div class="tile"><span>Recent</span><div id="history" aria-label="Recent draws"></div></div><div class="tile"><span>Draws</span><b id="drawCount">0</b></div></div>
+    <button class="cta" id="shakeBtn">Shake</button>
+  </section>
+</main>
+
+<nav class="tabs" role="tablist" aria-label="Interactions">
+  <button role="tab" data-tab="ocean" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 13c2.2 0 2.2-1.8 4.5-1.8s2.3 1.8 4.5 1.8 2.3-1.8 4.5-1.8S18.8 13 21 13"/><path d="M3 17.5c2.2 0 2.2-1.8 4.5-1.8s2.3 1.8 4.5 1.8 2.3-1.8 4.5-1.8 2.3 1.8 4.5 1.8"/></svg>Ocean</button>
+  <button role="tab" data-tab="smoke" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M9.5 3l1 5.5"/><path d="M12 8.5c4.3 0 7 3 7 6.5s-3 5.5-7 5.5-7-2-7-5.5 2.7-6.5 7-6.5z"/></svg>Session</button>
+  <button role="tab" data-tab="tap" aria-selected="false"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="16" cy="8" r="1.2"/><circle cx="12" cy="11" r="1.6"/><circle cx="8" cy="14" r="1.2"/><circle cx="16" cy="14" r="1.2"/><circle cx="12" cy="17" r="1.2"/><circle cx="4" cy="11" r=".9"/><circle cx="20" cy="11" r=".9"/><circle cx="12" cy="20.5" r=".9"/></svg>Encounter</button>
+  <button role="tab" data-tab="shake" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="7.5" cy="12" r="4"/><path d="M14.5 8l7 8M21.5 8l-7 8"/></svg>O or X</button>
+</nav>
+
+
+<script>
+/* ===== LED layout: evenly inset grid generated from the enclosure outline ===== */
+const ROWS=[[8,10],[4,15],[2,17],[1,18],[1,19],[0,20],[0,20],[0,21],[0,22],[0,22],[1,23],[1,23],[1,24],[1,24],[2,24],[2,24],[2,24],[2,24],[3,24],[3,25],[3,25],[4,25],[4,25],[4,25],[5,25],[5,25],[5,25],[6,25],[6,25],[7,25],[7,25],[7,25],[8,25],[8,25],[9,25],[10,25],[10,24],[11,24],[13,23],[17,20]];
+const OUT=[[9.958,-1.043],[15.173,-0.184],[18.854,2.27],[22.228,6.258],[24.682,10.552],[25.756,15.46],[26.216,23.129],[26.216,31.411],[25.909,36.013],[24.068,38.773],[20.081,40.0],[15.173,39.847],[10.878,38.16],[7.811,34.786],[4.743,28.344],[1.676,19.755],[-0.778,10.246],[-1.392,6.258],[-0.471,2.884],[2.289,0.43],[5.663,-0.736]];
+const NR=ROWS.length,NC=Math.max(...ROWS.map(r=>r[1]))+1;
+const mask=new Uint8Array(NC*NR),cellList=[];
+ROWS.forEach(([a,b],r)=>{for(let c=a;c<=b;c++){mask[r*NC+c]=1;cellList.push(r*NC+c);}});
+const NCELL=cellList.length;
+document.getElementById('meta').textContent=NCELL+' LEDs';
+const OX=OUT.map(p=>p[0]),OY=OUT.map(p=>p[1]);
+const MINX=Math.min(...OX),MAXX=Math.max(...OX),MINY=Math.min(...OY),MAXY=Math.max(...OY);
+const CX=(MINX+MAXX)/2,CY=(MINY+MAXY)/2,VW=MAXX-MINX,VH=MAXY-MINY;
+const STICK_IN=[5.5,1.4],STICK_EDGE=[5.6,0.2],STICK_OUT=[4.4,-5.2];
+const OUTPTS=(()=>{const n=OUT.length,pts=[];
+  for(let i=0;i<n;i++){const p0=OUT[(i-1+n)%n],p1=OUT[i],p2=OUT[(i+1)%n],p3=OUT[(i+2)%n];
+    for(let k=0;k<12;k++){const t=k/12,t2=t*t,t3=t2*t;
+      pts.push([0,1].map(j=>.5*(2*p1[j]+(-p0[j]+p2[j])*t+(2*p0[j]-5*p1[j]+4*p2[j]-p3[j])*t2+(-p0[j]+3*p1[j]-3*p2[j]+p3[j])*t3)));}}
+  return pts;})();
+const TIP=OUTPTS.reduce((a,b)=>b[1]<a[1]?b:a);   /* top edge is the meeting point */
+const CONTACT=(()=>{const dx=CX-TIP[0],dy=CY-TIP[1],m=Math.hypot(dx,dy);return[TIP[0]+dx/m*1.6,TIP[1]+dy/m*1.6];})();
+const [CONTACT_A,CONTACT_B]=(()=>{let best=[null,null],bd=1e9;
+  for(const a of OUTPTS)for(const b of OUTPTS){const d=(b[0]+VW-a[0])**2+(b[1]-a[1])**2;if(d<bd){bd=d;best=[a,b];}}
+  /* nudge each contact point one LED inward so the bubble sits on the display */
+  return best.map(([x,y])=>{const dx=CX-x,dy=CY-y,m=Math.hypot(dx,dy);return[x+dx/m*1.2,y+dy/m*1.2];});})();
+function inside(x,y){const c=Math.round(x),r=Math.round(y);return c>=0&&c<NC&&r>=0&&r<NR&&mask[r*NC+c]===1;}
+
+/* pixel font, 3 x 5 */
+const FONT={0:'111101101101111',1:'010110010010111',2:'111001111100111',3:'111001111001111',4:'101101111001001',
+5:'111100111001111',6:'111100111101111',7:'111001001010010',8:'111101111101111',9:'111101111001111'};
+
+/* ===== one device: its own water, its own LEDs ===== */
+const G=60;
+class Vessel{
+  constructor(){const n=NCELL,m=NC*NR;
+    for(const k of['px','py','ox','oy','vx','vy','tx','ty','rel','dl','sx','sy','an','ph'])this[k]=new Float32Array(n);
+    this.pin=new Uint8Array(n);this.hidden=new Uint8Array(n);this.head=new Int32Array(m);this.nxt=new Int32Array(n);
+    this.field=new Float32Array(m);this.boost=new Float32Array(m);this.disp=new Float32Array(m);
+    this.N=0;this.gx=0;this.gy=1;this.fx=0;this.attract=null;this.formEnd=0;
+    this.pullPt=null;this.pullK=0;this.rippling=false;}
+  spawn(frac){
+    const gx=this.gx,gy=this.gy,s=cellList.slice().sort((a,b)=>((b%NC)*gx+(b/NC|0)*gy)-((a%NC)*gx+(a/NC|0)*gy)+(Math.random()-.5)*.01);
+    this.N=Math.round(NCELL*frac);this.pin.fill(0);
+    for(let i=0;i<this.N;i++){const k=s[i];this.px[i]=k%NC;this.py[i]=k/NC|0;this.vx[i]=this.vy[i]=0;}
+  }
+  collide(i){const{px,py,ox,oy}=this;
+    if(inside(px[i],py[i]))return;
+    if(inside(px[i],oy[i])){py[i]=oy[i];return;}
+    if(inside(ox[i],py[i])){px[i]=ox[i];return;}
+    px[i]=ox[i];py[i]=oy[i];}
+  hash(){const{head,nxt,px,py}=this;head.fill(-1);
+    for(let i=0;i<this.N;i++){const c=Math.min(NC-1,Math.max(0,Math.round(px[i]))),r=Math.min(NR-1,Math.max(0,Math.round(py[i]))),b=r*NC+c;nxt[i]=head[b];head[b]=i;}}
+  step(dt){
+    const{px,py,ox,oy,vx,vy,pin,tx,ty,head,nxt}=this,N=this.N,vmax=.45/dt;
+    for(let i=0;i<N;i++){
+      ox[i]=px[i];oy[i]=py[i];
+      if(pin[i])continue;
+      if(this.attract){const dx=this.attract[0]-px[i],dy=this.attract[1]-py[i],m=Math.hypot(dx,dy)||1;vx[i]+=dx/m*G*1.25*dt;vy[i]+=dy/m*G*1.25*dt;}
+      else{vx[i]+=(this.gx+this.fx)*G*dt;vy[i]+=this.gy*G*dt;
+        if(this.pullK){const dx=this.pullPt[0]-px[i],dy=this.pullPt[1]-py[i],m=Math.hypot(dx,dy)||1;vx[i]+=dx/m*this.pullK*G*dt;vy[i]+=dy/m*this.pullK*G*dt;}}
+      const sp=Math.hypot(vx[i],vy[i]);if(sp>vmax){vx[i]*=vmax/sp;vy[i]*=vmax/sp;}
+      px[i]+=vx[i]*dt;py[i]+=vy[i]*dt;if(!pin[i])this.collide(i);
+    }
+    for(let it=0;it<3;it++){
+      this.hash();
+      for(let i=0;i<N;i++){
+        const ci=Math.round(px[i]),ri=Math.round(py[i]),wi=pin[i]?.02:1;
+        for(let dr=-1;dr<=1;dr++){const r=ri+dr;if(r<0||r>=NR)continue;
+          for(let dc=-1;dc<=1;dc++){const c=ci+dc;if(c<0||c>=NC)continue;
+            for(let j=head[r*NC+c];j!==-1;j=nxt[j]){if(j<=i||(pin[i]&&pin[j]))continue;
+              let dx=px[j]-px[i],dy=py[j]-py[i],d2=dx*dx+dy*dy;if(d2>=1)continue;
+              let d=Math.sqrt(d2);if(d<1e-4){dx=Math.random()-.5;dy=Math.random()-.5;d=Math.hypot(dx,dy);}
+              const wj=pin[j]?.02:1,p=(1-d)/d/(wi+wj);
+              px[i]-=dx*p*wi;py[i]-=dy*p*wi;px[j]+=dx*p*wj;py[j]+=dy*p*wj;
+              if(!pin[i])this.collide(i);if(!pin[j])this.collide(j);
+            }}}
+      }
+    }
+    for(let i=0;i<N;i++){if(pin[i]){vx[i]=vy[i]=0;continue;}vx[i]=(px[i]-ox[i])/dt*.998;vy[i]=(py[i]-oy[i])/dt*.998;}
+  }
+  splash(k=1){for(let i=0;i<this.N;i++){if(this.pin[i])continue;
+    this.vx[i]+=k*((Math.random()-.5)*14-this.gx*10);this.vy[i]+=k*((Math.random()-.5)*14-this.gy*16);}}
+  splatCrisp(){
+    const{field,boost,disp,px,py,pin}=this;field.fill(0);boost.fill(0);
+    for(let i=0;i<this.N;i++){if(this.hidden[i]&&pin[i]===1)continue;const c=Math.round(px[i]),r=Math.round(py[i]);
+      if(c>=0&&c<NC&&r>=0&&r<NR&&mask[r*NC+c]){field[r*NC+c]+=1;if(pin[i])boost[r*NC+c]+=1;}}
+    for(const k of cellList){const t=Math.min(1,field[k]);disp[k]+=(t-disp[k])*.3;}
+  }
+  splat(look){
+    const{field,boost,disp,px,py,pin}=this;field.fill(0);boost.fill(0);
+    for(let i=0;i<this.N;i++){
+      const c0=Math.floor(px[i]),r0=Math.floor(py[i]),fx=px[i]-c0,fy=py[i]-r0;
+      const w=[[0,0,(1-fx)*(1-fy)],[1,0,fx*(1-fy)],[0,1,(1-fx)*fy],[1,1,fx*fy]];
+      for(const[dc,dr,ww]of w){const c=c0+dc,r=r0+dr;if(c>=0&&c<NC&&r>=0&&r<NR&&mask[r*NC+c]){field[r*NC+c]+=ww;if(pin[i])boost[r*NC+c]+=ww;}}
+    }
+    for(const k of cellList){const t=look==='hard'?(field[k]>.45?1:0):Math.min(1,field[k]*1.25);disp[k]+=(t-disp[k])*(look==='hard'?1:.35);}
+  }
+  releaseAll(){for(let i=0;i<this.N;i++)if(this.pin[i]){this.pin[i]=0;this.vx[i]=(Math.random()-.5);this.vy[i]=1;}}
+  /* pins: 1 travelling into a shape, 2 holding it, 4 riding the ripple */
+  travel(pairs,now,dur,from,relAt,ease=backOut){
+    this.popStart=now;this.popDur=dur;this.ease=ease;
+    for(const[i,c,r,delay]of pairs){this.pin[i]=1;this.tx[i]=c;this.ty[i]=r;
+      this.sx[i]=from?from[0]:this.px[i];this.sy[i]=from?from[1]:this.py[i];if(from){this.px[i]=from[0];this.py[i]=from[1];}
+      this.dl[i]=delay;this.rel[i]=relAt(c,r);}
+  }
+  /* the count pops out of the contact point, grows into place, holds */
+  formNumber(n,now,origin){
+    this.releaseAll();
+    const str=String(Math.min(999,n)),len=str.length,tw=len*5+(len-1)*2;
+    const top=11,mid=12.5;
+    const c0=Math.round(mid-tw/2+.5),tg=[];
+    [...str].forEach((ch,d)=>{const f=FONT[ch],on=(x,y)=>x>=0&&x<3&&y>=0&&y<5&&f[y*3+x]==='1',set=new Set();
+      for(let fy=0;fy<5;fy++)for(let fx=0;fx<3;fx++)if(on(fx,fy)){set.add(fx*2+','+fy*2);
+        if(on(fx+1,fy))set.add((fx*2+1)+','+fy*2);if(on(fx,fy+1))set.add(fx*2+','+(fy*2+1));}
+      for(const p of set){const[x,y]=p.split(',').map(Number),c=c0+d*7+x,r=top+y;if(inside(c,r))tg.push([c,r]);}});
+    const order=[...Array(this.N).keys()].sort((i,j)=>((this.px[i]-origin[0])**2+(this.py[i]-origin[1])**2)-((this.px[j]-origin[0])**2+(this.py[j]-origin[1])**2));
+    const pairs=tg.slice(0,order.length).map(([c,r],k)=>[order[k],c,r,Math.hypot(c-origin[0],r-origin[1])*.012]);
+    this.travel(pairs,now,POP_DUR,origin,(c,r)=>now+POP_DUR+.35+NUM_HOLD+(top+8-r)*.05+Math.random()*.05);
+  }
+  /* O or X: the ocean flows into the symbol and holds until the next shake */
+  formShape(kind,now){
+    this.releaseAll();
+    const[cx,cy]=SHAPE_C,R=SHAPE_R,seg=(x,y,ax,ay,bx,by)=>{const dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy)));return[Math.hypot(x-ax-t*dx,y-ay-t*dy),t];};
+    /* each dot gets a stroke position 0..1, the symbol is drawn in that order like a pen */
+    let cells;
+    if(kind==='O'){
+      cells=cellList.map(k=>[k%NC,k/NC|0]).filter(([x,y])=>Math.abs(Math.hypot(x-cx,y-cy)-R)<=1.25)
+        .map(([x,y])=>[x,y,((Math.atan2(x-cx,-(y-cy))+2*Math.PI)%(2*Math.PI))/(2*Math.PI)]);
+    }else{
+      cells=[];for(const k of cellList){const x=k%NC,y=k/NC|0,r=R-1,[d1,t1]=seg(x,y,cx-r,cy-r,cx+r,cy+r),[d2,t2]=seg(x,y,cx+r,cy-r,cx-r,cy+r);
+        if(d1<=1)cells.push([x,y,t1*.5]);else if(d2<=1)cells.push([x,y,.5+t2*.5]);}
+    }
+    cells.sort((a,b)=>a[2]-b[2]);
+    const ang=(x,y)=>Math.atan2(x-cx,-(y-cy));
+    const parts=[...Array(this.N).keys()].sort((i,j)=>ang(this.px[i],this.py[i])-ang(this.px[j],this.py[j]));
+    /* every drop joins the symbol, extra drops stack on the same dots */
+    this.travel(parts.map((i,k)=>{const c=cells[Math.floor(k*cells.length/parts.length)];return[i,c[0],c[1],c[2]*DRAW_TIME];}),
+      now,.55,null,()=>Infinity,smooth);
+  }
+  startRipple(c,now){
+    this.rippling=true;this.ripC=c;this.ripT0=now;this.ripBase=Math.atan2(CY-c[1],CX-c[0]);
+    this.rMax=Math.max(...cellList.map(k=>Math.hypot((k%NC)-c[0],(k/NC|0)-c[1])))+2;
+    for(let i=0;i<this.N;i++)if(!this.pin[i])this.toRipple(i);
+  }
+  toRipple(i){this.pin[i]=4;this.an[i]=this.ripBase+(Math.random()-.5)*3.6;this.ph[i]=Math.floor(Math.random()*RIP_RINGS)+Math.random()*.3;this.dl[i]=-1;}
+  stopRipple(){this.rippling=false;
+    for(let i=0;i<this.N;i++)if(this.pin[i]){this.pin[i]=0;this.vx[i]=(Math.random()-.5)*1.5;this.vy[i]=Math.random()*2;}}
+  /* thin digit targets for n, in this device's frame */
+  digitCells(n){
+    const str=String(Math.min(999,n)),len=str.length,tw=len*5+(len-1)*2,top=SHAPE_C[1]-4,c0=Math.round(SHAPE_C[0]-(tw-1)/2),tg=[];
+    [...str].forEach((ch,d)=>{const f=FONT[ch],on=(x,y)=>x>=0&&x<3&&y>=0&&y<5&&f[y*3+x]==='1',set=new Set();
+      for(let fy=0;fy<5;fy++)for(let fx=0;fx<3;fx++)if(on(fx,fy)){set.add(fx*2+','+fy*2);
+        if(on(fx+1,fy))set.add((fx*2+1)+','+fy*2);if(on(fx,fy+1))set.add(fx*2+','+(fy*2+1));}
+      for(const p of set){const[x,y]=p.split(',').map(Number),c=c0+d*7+x,r=top+y;if(inside(c,r))tg.push([c,r]);}});
+    return tg;}
+  /* dots nearest the tip leave first and accelerate into it, forming a stream */
+  sendOut(count,now){
+    this.sendStart=now;
+    const free=[...Array(this.N).keys()].filter(i=>!this.pin[i])
+      .sort((i,j)=>Math.hypot(this.px[i]-CONTACT[0],this.py[i]-CONTACT[1])-Math.hypot(this.px[j]-CONTACT[0],this.py[j]-CONTACT[1])).slice(0,count);
+    free.forEach((i,k)=>{this.pin[i]=5;this.sx[i]=this.px[i];this.sy[i]=this.py[i];this.dl[i]=k*STREAM_GAP;});
+  }
+  /* arriving dots enter at the tip and flow into the digits, far dots first */
+  prepareInbox(n,now){
+    this.inbox=this.digitCells(n).sort((a,b)=>Math.hypot(b[0]-CONTACT[0],b[1]-CONTACT[1])-Math.hypot(a[0]-CONTACT[0],a[1]-CONTACT[1]));
+    this.popStart=now;this.popDur=FORM_TIME;this.ease=smooth;this.inboxDone=0;
+  }
+  receive(k,now){
+    for(let q=0;q<k&&this.N<NCELL;q++){
+      const t=this.inbox[this.inboxDone++],i=this.N++;
+      if(!t){this.px[i]=CONTACT[0];this.py[i]=CONTACT[1];const a=Math.atan2(CY-CONTACT[1],CX-CONTACT[0])+(Math.random()-.5)*1.6,sp=4+Math.random()*8;
+        this.vx[i]=Math.cos(a)*sp;this.vy[i]=Math.sin(a)*sp;this.pin[i]=0;continue;}
+      this.px[i]=this.sx[i]=CONTACT[0];this.py[i]=this.sy[i]=CONTACT[1];this.vx[i]=this.vy[i]=0;
+      this.pin[i]=1;this.tx[i]=t[0];this.ty[i]=t[1];this.dl[i]=now-this.popStart;
+      this.rel[i]=now+FORM_TIME+NUM_HOLD+(this.inbox.length-this.inboxDone)*STREAM_GAP+(19-t[1])*.03;}
+  }
+  leakNumber(n,now,delay){
+    const tg=this.digitCells(n).sort((a,b)=>Math.hypot(b[0]-CONTACT[0],b[1]-CONTACT[1])-Math.hypot(a[0]-CONTACT[0],a[1]-CONTACT[1]));
+    const free=[...Array(this.N).keys()].filter(i=>!this.pin[i]).sort(()=>Math.random()-.5);
+    this.popStart=now;this.popDur=LEAK_TRAVEL;this.ease=smooth;
+    tg.forEach(([c,r],k)=>{const i=free[k];if(i===undefined)return;
+      this.pin[i]=1;this.sx[i]=this.px[i]=CONTACT[0];this.sy[i]=this.py[i]=CONTACT[1];this.tx[i]=c;this.ty[i]=r;
+      this.dl[i]=delay+k*LEAK_GAP;this.rel[i]=Infinity;});
+  }
+  removeAt(i){const j=--this.N;
+    for(const key of['px','py','ox','oy','vx','vy','tx','ty','rel','dl','sx','sy','an','ph','pin'])this[key][i]=this[key][j];}
+  updatePins(now,dt){const{pin,rel,px,py,tx,ty,vx,vy,dl,sx,sy,an,ph}=this;
+    let arrived=0;
+    for(let i=this.N-1;i>=0;i--)if(pin[i]===5){
+      const e=Math.max(0,Math.min(1,(now-this.sendStart-dl[i])/FLY_TIME)),k=e*e*e;
+      px[i]=sx[i]+(CONTACT[0]-sx[i])*k;py[i]=sy[i]+(CONTACT[1]-sy[i])*k;
+      if(e>=1){this.removeAt(i);arrived++;}}
+    this.arrived=arrived;
+    const spacing=this.rMax/RIP_RINGS;
+    for(let i=0;i<this.N;i++){if(!pin[i])continue;
+      if(pin[i]===1){const raw=(now-this.popStart-dl[i])/this.popDur,e=Math.max(0,Math.min(1,raw)),k=this.ease(e);this.hidden[i]=raw<0?1:0;
+        px[i]=sx[i]+(tx[i]-sx[i])*k;py[i]=sy[i]+(ty[i]-sy[i])*k;if(e>=1)pin[i]=2;}
+      else if(pin[i]===2){px[i]=tx[i];py[i]=ty[i];}
+      else if(pin[i]===4){   /* the water itself forms rings that travel out from the contact */
+        const r=((now-this.ripT0)*RIP_SPEED+ph[i]*spacing)%this.rMax;
+        const x=this.ripC[0]+Math.cos(an[i])*r,y=this.ripC[1]+Math.sin(an[i])*r;
+        if(r<dl[i]){px[i]=x;py[i]=y;}else{const f=Math.min(1,dt*9);px[i]+=(x-px[i])*f;py[i]+=(y-py[i])*f;}
+        dl[i]=r;}
+      if((pin[i]===1||pin[i]===2)&&now>=rel[i]){
+        if(this.rippling)this.toRipple(i);else{pin[i]=0;vx[i]=(Math.random()-.5)*.8;vy[i]=.5;}}}}
+}
+const LEAK_GAP=.028,LEAK_TRAVEL=.55,LEAK_DELAY=.45,STREAM_EXTRA=45,STREAM_GAP=.014,FLY_TIME=.42,FORM_TIME=.6,NUM_HOLD=.9,RIP_SPEED=7,RIP_RINGS=4;
+const SHAPE_C=(()=>{let x=0,y=0;for(const k of cellList){x+=k%NC;y+=k/NC|0;}return[Math.round(x/NCELL),Math.round(y/NCELL)];})();
+const SHAPE_R=6,DRAW_TIME=.9;
+function smooth(t){return t<.5?4*t*t*t:1-(-2*t+2)**3/2;}
+const POP_DUR=.5;
+function backOut(t){const c=1.9;return 1+(c+1)*(t-1)**3+c*(t-1)**2;}
+
+/* ===== rendering ===== */
+const stage=document.getElementById('stage'),cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,Hh=0,dpr=1,paper='#fbfbf9';
+function readColors(){paper=getComputedStyle(document.documentElement).getPropertyValue('--paper').trim();}
+function resize(){dpr=Math.min(devicePixelRatio||1,2);W=stage.clientWidth;Hh=stage.clientHeight;cv.width=W*dpr;cv.height=Hh*dpr;}
+const FINISH={
+  charcoal:{hi:'#4b4b52',lo:'#2d2d32',rim:'rgba(255,255,255,.10)',shell:'#3b3b41',edge:'#26262a',off:[72,72,79],on:[255,244,214],glow:[255,228,160],ga:.16},
+  stone:{hi:'#cfcec8',lo:'#adaca6',rim:'rgba(255,255,255,.45)',shell:'#bebdb7',edge:'#9f9e98',off:[176,175,169],on:[255,255,252],glow:[255,255,255],ga:.18},
+  cream:{hi:'#f4f2ec',lo:'#d9d5cb',rim:'rgba(255,255,255,.6)',shell:'#ebe8e0',edge:'#cfcbc1',off:[221,218,209],on:[255,255,253],glow:[255,255,255],ga:.18}};
+const DEVICE_SCALE=.66;
+let finish='stone',look='soft',showAll=false,bright=.6;
+function outlinePath(S){
+  const n=OUT.length,P=OUT.map(([x,y])=>[(x-CX)*S,(y-CY)*S]);
+  ctx.beginPath();ctx.moveTo(P[0][0],P[0][1]);
+  for(let i=0;i<n;i++){const p0=P[(i-1+n)%n],p1=P[i],p2=P[(i+1)%n],p3=P[(i+2)%n];
+    ctx.bezierCurveTo(p1[0]+(p2[0]-p0[0])/6,p1[1]+(p2[1]-p0[1])/6,p2[0]-(p3[0]-p1[0])/6,p2[1]-(p3[1]-p1[1])/6,p2[0],p2[1]);}
+  ctx.closePath();
+}
+/* factor(k) -> [brightness multiplier, extra glow 0..1] */
+function drawVessel(V,x0,y0,ang,S,withStick,factor){
+  const F=FINISH[finish],P=([x,y])=>[(x-CX)*S,(y-CY)*S];
+  ctx.save();ctx.translate(x0,y0);ctx.rotate(ang);
+  if(withStick){   /* the stick is shaded like the body: soft cylinder, same shadow, no outline */
+    const[a,b]=[P(STICK_EDGE),P(STICK_OUT)],L=Math.hypot(b[0]-a[0],b[1]-a[1]),w=S*1.45,r=S*.28;
+    ctx.save();ctx.translate(a[0],a[1]);ctx.rotate(Math.atan2(b[1]-a[1],b[0]-a[0]));
+    ctx.shadowColor='rgba(0,0,0,.16)';ctx.shadowBlur=S*1.4;ctx.shadowOffsetY=S*.45;
+    const g=ctx.createLinearGradient(0,-w/2,0,w/2);
+    g.addColorStop(0,'#d9d7d1');g.addColorStop(.35,'#f6f5f1');g.addColorStop(.6,'#eceae5');g.addColorStop(1,'#c4c2bb');
+    ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(-S*2,-w/2,L+S*2,w,[0,r,r,0]);ctx.fill();
+    ctx.restore();}
+  const gr=ctx.createLinearGradient((MINX-CX)*S,(MINY-CY)*S,(MAXX-CX)*S,(MAXY-CY)*S);gr.addColorStop(0,F.hi);gr.addColorStop(1,F.lo);
+  ctx.save();ctx.shadowColor='rgba(0,0,0,.18)';ctx.shadowBlur=S*1.6;ctx.shadowOffsetY=S*.5;
+  outlinePath(S);ctx.fillStyle=gr;ctx.fill();ctx.restore();
+  const R=S*.32,pos=k=>P([k%NC,k/NC|0]);
+  if(showAll){ctx.fillStyle=`rgb(${F.off})`;for(const k of cellList){const[x,y]=pos(k);ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();}}
+  const lit=[];
+  for(const k of cellList){const[f,w0,add=0]=factor?factor(k):[1,0],w=Math.max(w0,Math.min(1,V.boost[k])*.6),b=Math.min(1,(V.view||V.disp)[k]*f+add);if(b>.04)lit.push([k,b,w]);}
+  for(const[k,b,w]of lit){const[x,y]=pos(k);
+    ctx.fillStyle=`rgba(${F.glow},${Math.min(1,F.ga*b*bright*(1+w*1.2))})`;ctx.beginPath();ctx.arc(x,y,R*(1.35+w*.25),0,7);ctx.fill();}
+  for(const[k,b,w]of lit){const[x,y]=pos(k);
+    ctx.fillStyle=`rgba(${F.on},${Math.min(1,b*(.35+.65*bright)*(1+w*.25))})`;ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();}
+  ctx.restore();
+}
+function fitScale(a,withStick){const c=Math.cos(a),s=Math.sin(a);let mx=0,my=0;
+  for(const[x,y]of withStick?OUT.concat([STICK_OUT]):OUT){const dx=x-CX,dy=y-CY;mx=Math.max(mx,Math.abs(dx*c-dy*s));my=Math.max(my,Math.abs(dx*s+dy*c));}
+  return Math.min((W/2-8)/(mx+.4),(Hh/2-8)/(my+.4))*DEVICE_SCALE;}
+
+/* ===== state ===== */
+const V=new Vessel(),A=new Vessel(),B=new Vessel();
+let mode='drag',angle=0,omega=0,dragging=null,pull=null,lastTap=0,phoneG=null,gain=3.5,baseFill=.3,S=1;
+const hint=document.getElementById('hint');
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ----- session: insert, heat, inhale, release, drain ----- */
+const HEAT_DUR=4,BUDGET=24;
+let stick='out',heatT=0,used=0,inhaling=false,level=1,baseN=0;
+const stickBtn=document.getElementById('stick'),stickBar=document.getElementById('stickBar'),stickPct=document.getElementById('stickPct');
+function sessionHint(){if(mode!=='smoke')return;const left=Math.max(0,Math.round((1-used/BUDGET)*100));
+  stickBar.style.width=(stick==='out'?0:left)+'%';stickPct.textContent=stick==='out'?'0':left;
+  $('sessStatus').textContent={out:'No stick',heating:'Heating',ready:inhaling?'Inhaling':'Ready',done:'Finished'}[stick];$('puffs').textContent=puffs;
+  hint.textContent={out:'Insert the stick to start heating.',heating:'Heating…',
+    ready:'Ready. Hold the device to inhale, let go to exhale.',done:'Stick finished. Remove it.'}[stick];
+  stickBtn.textContent=stick==='out'?'Insert stick':'Remove stick';}
+stickBtn.onclick=()=>{if(stick==='out'){stick='heating';heatT=0;used=0;puffs=0;level=1;V.attract=null;V.spawn(baseFill);baseN=V.N;}
+  else{stick='out';inhaling=false;V.attract=null;}sessionHint();};
+let puffs=0;
+function startInhale(){if(stick==='ready'){inhaling=true;puffs++;V.attract=STICK_IN;sessionHint();}}
+function endInhale(){if(!inhaling)return;inhaling=false;V.attract=null;
+  for(let i=0;i<V.N;i++){V.vy[i]+=4+Math.random()*3;V.vx[i]+=(Math.random()-.5)*2;}sessionHint();}
+function sessionFactor(k){
+  if(stick==='out')return[0,0];
+  const d=Math.hypot((k%NC)-STICK_IN[0],(k/NC|0)-STICK_IN[1]);let f=1,w=0;
+  if(stick==='heating'){const r=heatT/HEAT_DUR*48;f=Math.max(0,Math.min(1,(r-d)/4));w=Math.max(0,1-Math.abs(r-d-2)/4)*.7;}
+  if(inhaling)w=Math.max(w,Math.max(0,1-d/9)*.5);
+  return[f*level,w];}
+function sessionTick(dt){
+  if(stick==='heating'){heatT+=dt;for(let i=0;i<V.N;i++){V.vx[i]+=(Math.random()-.5)*60*dt;V.vy[i]+=(Math.random()-.5)*60*dt;}
+    if(heatT>=HEAT_DUR){stick='ready';sessionHint();}}
+  if(inhaling){used+=dt;if(Math.round(used*10)%5===0)sessionHint();if(used>=BUDGET){endInhale();stick='done';sessionHint();}}
+  level+=((stick==='done'?0:1)-level)*Math.min(1,dt*3);
+  if(stick!=='out'){const rem=Math.max(0,1-used/BUDGET),want=Math.round(baseN*(stick==='done'?0:.15+.85*rem));if(V.N>want)V.N--;}
+}
+
+/* ----- tap: tip to tip, light gathers to the contact, heartbeat while touching ----- */
+const GAP_REST=8,GAP_MAX=14,FIELD=11,TAP_FILL=.3,MEET_ANGLE=1.0;   /* direction the first device's tip points, radians */
+const TIPV=[TIP[0]-CX,TIP[1]-CY],TIPL=Math.hypot(...TIPV),THETA_A=MEET_ANGLE-Math.atan2(TIPV[1],TIPV[0]);
+const U=[Math.cos(MEET_ANGLE),Math.sin(MEET_ANGLE)];
+let warps=[],frameNow=0,gap=GAP_REST,count=0,touching=false,auto=null,tapDrag=null,S2=1,beatT=0,seam=0;
+const bumpBtn=document.getElementById('bump');
+function tapHint(){if(mode!=='tap')return;
+  bumpBtn.textContent=touching?'Pull apart':'Bring together';$('encCount').textContent=count;$('encStatus').textContent=touching?'Connected':'Apart';
+  hint.textContent=touching?'Connected. Pull apart to let go.':'Tap the preview, or drag one device toward the other.';}
+function contact(now){
+  touching=true;count++;bubbles=[{t0:now,maxR:12,dur:1.2,amp:1}];lastBubble=now;
+  for(const v of[A,B]){v.releaseAll();v.leakNumber(count,now,LEAK_DELAY);}
+  if(navigator.vibrate)navigator.vibrate(18);tapHint();
+}
+/* pulled apart: the number lets go and drifts back into the field */
+function separate(){touching=false;bubbles=[];
+  for(const v of[A,B]){for(let i=0;i<v.N;i++){v.vx[i]*=.3;v.vy[i]*=.3;if(!v.pin[i])continue;v.pin[i]=0;v.hidden[i]=0;v.vx[i]=(Math.random()-.5)*1.5;v.vy[i]=0;}}
+  tapHint();}
+function moveTo(to){auto={t0:frameNow,from:gap,to,dur:to===0?.35:.5};}
+/* a bubble of light swells out of the contact point, then sinks back in; smaller ones follow while connected */
+let bubbles=[],lastBubble=0;
+function easeOut(t){return 1-(1-t)**3;}
+function bubbleLight(k,now){
+  if(!bubbles.length)return 0;const x=k%NC,y=k/NC|0,d=Math.hypot(x-CONTACT[0],y-CONTACT[1]);let a=0;
+  for(const b of bubbles){const e=(now-b.t0)/b.dur;if(e<0||e>1)continue;
+    const grow=easeOut(Math.min(1,e/.55)),shrink=e<.55?1:1-easeOut((e-.55)/.45),r=b.maxR*grow*(e<.55?1:.6+.4*shrink);
+    const rim=Math.exp(-(((d-r)/1.1)**2)),inner=d<r?.28*(1-d/Math.max(r,1)):0;
+    a+=(rim*.85+inner)*b.amp*shrink;}
+  return Math.min(1,a);}
+function bubblePush(dt,now){
+  for(const b of bubbles){const e=(now-b.t0)/b.dur;if(e<0||e>.55)continue;const r=b.maxR*easeOut(e/.55);
+    for(const v of[A,B])for(let i=0;i<v.N;i++){if(v.pin[i])continue;const dx=v.px[i]-CONTACT[0],dy=v.py[i]-CONTACT[1],d=Math.hypot(dx,dy)||1;
+      const w=Math.exp(-(((d-r)/1.6)**2))*b.amp;if(w>.05){v.vx[i]+=dx/d*w*60*dt;v.vy[i]+=dy/d*w*60*dt;}}}
+  bubbles=bubbles.filter(b=>now-b.t0<b.dur);
+}
+function tapTick(dt,now){
+  if(auto){const e=Math.min(1,(now-auto.t0)/auto.dur),k=auto.to===0?e*e*(3-2*e):1-(1-e)**3;gap=auto.from+(auto.to-auto.from)*k;if(e>=1)auto=null;}
+  if(gap<=.02&&!touching)contact(now);
+  if(touching&&gap>.6)separate();
+  const p=Math.max(0,Math.min(1,1-gap/FIELD));
+  seam+=((touching?.85+.15*Math.sin((now-beatT)*Math.PI*2/1.4):p**3*.35)-seam)*Math.min(1,dt*6);
+  for(const v of[A,B]){
+    const gs=touching?.12:Math.max(0,1-p*1.4);   /* each device's own down: rest at the bottom, rise to the top to meet */
+    v.gx=0;v.gy=gs;v.fx=0;v.pullPt=CONTACT;v.pullK=touching?.35:p**1.6*1.5;
+    if(touching||p>.05)for(let i=0;i<v.N;i++){if(v.pin[i])continue;v.vx[i]+=(Math.random()-.5)*9*dt*4;v.vy[i]+=(Math.random()-.5)*9*dt*4;}
+  }
+  if(touching&&now-lastBubble>=2){lastBubble=now;bubbles.push({t0:now,maxR:8,dur:1.5,amp:.55});}
+  bubblePush(dt,now);
+  A.updatePins(now,dt);B.updatePins(now,dt);
+}
+/* Apple style ripple: the wave bends what is already lit, like water passing over glass */
+const WARP_SPEED=22,WARP_LIFE=1.3,WARP_WIDTH=2.4,WARP_PUSH=2.6;
+function sampleDisp(D,x,y){const c0=Math.floor(x),r0=Math.floor(y),fx=x-c0,fy=y-r0;let v=0;
+  for(const[dc,dr,w]of[[0,0,(1-fx)*(1-fy)],[1,0,fx*(1-fy)],[0,1,(1-fx)*fy],[1,1,fx*fy]]){const c=c0+dc,r=r0+dr;
+    if(c>=0&&c<NC&&r>=0&&r<NR&&mask[r*NC+c])v+=D[r*NC+c]*w;}return v;}
+function warpView(V,now){
+  if(!warps.length){V.view=null;return;}
+  const out=V.view&&V.view.length?V.view:(V.view=new Float32Array(NC*NR));
+  for(const k of cellList){const x=k%NC,y=k/NC|0,dx=x-CONTACT[0],dy=y-CONTACT[1],d=Math.hypot(dx,dy)||1;
+    let off=0,lift=0;
+    for(const w of warps){const a=now-w.t0,r=a*WARP_SPEED,e=w.amp*(1-a/WARP_LIFE)**2,z=(d-r)/WARP_WIDTH;
+      const g=Math.exp(-z*z);off+=-z*g*WARP_PUSH*e*2;lift+=g*e;}   /* leading edge pulls, trailing edge pushes */
+    out[k]=Math.min(1,sampleDisp(V.disp,x+dx/d*off,y+dy/d*off)*(1+lift*.5));}
+}
+let swirlAfter=0;const SWIRL_C=SHAPE_C,SWIRL_R=6,SWIRL_SPIN=2.2;
+function tapLayout(){
+  const c=Math.cos(THETA_A),sn=Math.sin(THETA_A);let mx=0,my=0;
+  for(const[x,y]of OUT){const dx=x-CX,dy=y-CY,rx=dx*c-dy*sn,ry=dx*sn+dy*c,ox=U[0]*(TIPL+GAP_MAX/2),oy=U[1]*(TIPL+GAP_MAX/2);
+    mx=Math.max(mx,Math.abs(rx-ox),Math.abs(-rx+ox));my=Math.max(my,Math.abs(ry-oy),Math.abs(-ry+oy));}
+  S2=Math.min((W/2-10)/mx,(Hh/2-10)/my)*.86;
+  const k=(TIPL+gap/2)*S2;
+  return[[W/2-U[0]*k,Hh/2-U[1]*k],[W/2+U[0]*k,Hh/2+U[1]*k]];}
+function drawSeam(){
+  if(seam<.02)return;const r=S2*7,g=ctx.createRadialGradient(W/2,Hh/2,0,W/2,Hh/2,r);
+  g.addColorStop(0,`rgba(255,226,170,${.75*seam})`);g.addColorStop(.35,`rgba(255,206,130,${.32*seam})`);g.addColorStop(1,'rgba(255,200,120,0)');
+  ctx.save();ctx.globalCompositeOperation=paper.startsWith('#1')?'lighter':'source-over';
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(W/2,Hh/2,r,0,7);ctx.fill();ctx.restore();}
+bumpBtn.onclick=()=>moveTo(touching||gap<.5?GAP_REST:0);
+document.getElementById('resetCount').onclick=()=>{count=0;tapHint();};
+
+/* ----- O / X: shake to draw ----- */
+let shakeState=null,lastShakeGame=0;
+function shakeHint(){if(mode!=='shake')return;
+  hint.textContent=shakeState&&shakeState.phase==='churn'?'Drawing…':(motionOn&&events?'Shake your phone to draw.':'Shake your phone, or tap the preview, to draw.');}
+const history=[];let draws=0;
+function drawHistory(){document.getElementById('history').innerHTML=history.length?history.map((k,i)=>`<span class="glyph${i===0?' latest':''}" aria-label="${k}">${k==='O'?'<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="5.5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>':'<svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>'}</span>`).join(''):'<span class="empty">Your draws will appear here.</span>';}
+function doShake(now){
+  if(now-lastShakeGame<.9)return;lastShakeGame=now;
+  V.releaseAll();
+  for(let i=0;i<V.N;i++){V.vx[i]+=(Math.random()-.5)*10;V.vy[i]+=-4-Math.random()*8;}   /* the ocean lifts off the floor */
+  shakeState={phase:'churn',t0:now,kind:Math.random()<.5?'O':'X'};
+  if(navigator.vibrate)navigator.vibrate([12,40,12]);shakeHint();
+}
+function shakeTick(dt,now){
+  if(shakeState&&shakeState.phase==='churn'){
+    for(let i=0;i<V.N;i++){V.vx[i]+=(Math.random()-.5)*30*dt;V.vy[i]+=(Math.random()-.5)*30*dt;V.vx[i]*=.96;V.vy[i]*=.96;}
+    if(now-shakeState.t0>.6){V.formShape(shakeState.kind,now);shakeState.phase='hold';history.unshift(shakeState.kind);$('lastDraw').textContent=shakeState.kind;$('drawCount').textContent=++draws;history.length=Math.min(history.length,7);drawHistory();shakeHint();}}
+  V.updatePins(now,dt);
+}
+document.getElementById('shakeBtn').onclick=()=>doShake(frameNow);
+
+/* ----- pointer ----- */
+function pAngle(e){const b=stage.getBoundingClientRect();return Math.atan2(e.clientY-b.top-Hh/2,e.clientX-b.left-W/2);}
+function pPos(e){const b=stage.getBoundingClientRect();return[e.clientX-b.left-W/2,e.clientY-b.top-Hh/2];}
+stage.addEventListener('contextmenu',e=>e.preventDefault());
+stage.addEventListener('pointerdown',e=>{
+  e.preventDefault();stage.setPointerCapture(e.pointerId);const now=performance.now();
+  if(mode==='smoke'){startInhale();return;}
+  if(mode==='tap'){tapDrag={x:e.clientX,y:e.clientY,gap0:gap,moved:false};return;}
+  if(mode==='shake'){doShake(frameNow);return;}
+  if(mode==='spin'){if(now-lastTap<300){angle=0;omega=0;}lastTap=now;dragging={a:pAngle(e),t:now};omega=0;return;}
+  pull=pPos(e);
+});
+stage.addEventListener('pointermove',e=>{
+  if(tapDrag){const dx=e.clientX-tapDrag.x,dy=e.clientY-tapDrag.y;if(Math.hypot(dx,dy)>6)tapDrag.moved=true;
+    if(tapDrag.moved&&!auto){const b=stage.getBoundingClientRect(),side=Math.sign((tapDrag.x-b.left-W/2)*U[0]+(tapDrag.y-b.top-Hh/2)*U[1])||1;
+      gap=Math.max(0,Math.min(GAP_MAX,tapDrag.gap0+side*2*(dx*U[0]+dy*U[1])/S2));}return;}
+  if(pull){pull=pPos(e);return;}
+  if(!dragging)return;
+  const a=pAngle(e),now=performance.now();let d=a-dragging.a;if(d>Math.PI)d-=2*Math.PI;if(d<-Math.PI)d+=2*Math.PI;
+  angle+=d;const dt=Math.max(1,now-dragging.t)/1000;omega=omega*.5+(d/dt)*.5;dragging={a,t:now};
+});
+['pointerup','pointercancel'].forEach(ev=>stage.addEventListener(ev,()=>{
+  endInhale();dragging=null;pull=null;
+  if(tapDrag){if(!tapDrag.moved&&!auto)bumpBtn.click();tapDrag=null;}
+}));
+stage.addEventListener('keyup',e=>{if(e.key===' ')endInhale();});
+stage.addEventListener('keydown',e=>{
+  if(mode==='smoke'&&e.key===' '){startInhale();e.preventDefault();return;}
+  if(mode==='tap'&&(e.key===' '||e.key==='Enter')){bumpBtn.click();e.preventDefault();return;}
+  if(mode==='shake'&&(e.key===' '||e.key==='Enter')){doShake(frameNow);e.preventDefault();return;}
+  if(mode!=='spin')return;
+  if(e.key==='ArrowLeft'){angle-=.15;e.preventDefault();}
+  if(e.key==='ArrowRight'){angle+=.15;e.preventDefault();}
+});
+
+/* ----- phone motion ----- */
+const IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const embedded=(()=>{try{return self!==top}catch(_){return true}})();
+let motionOn=false,events=0,lastShake=0;
+function onMotion(e){events++;
+  const g=e.accelerationIncludingGravity;
+  if(g&&g.x!=null){let x=g.x/9.81,y=-g.y/9.81;if(!IOS){x=-x;y=-y;}
+    const a=((screen.orientation&&screen.orientation.angle)??window.orientation??0)*Math.PI/180;
+    const sx=x*Math.cos(a)+y*Math.sin(a),sy=-x*Math.sin(a)+y*Math.cos(a),m=Math.hypot(sx,sy);
+    phoneG=m>.03?(k=>[sx/m*k,sy/m*k])(Math.min(1.8,Math.max(.35,m*gain/1.5))):[0,.15];}
+  const ac=e.acceleration;if(!ac||ac.x==null)return;
+  const mm=Math.hypot(ac.x,ac.y,ac.z),now=performance.now();
+  if(mode==='phone'&&mm>8&&now-lastShake>250){lastShake=now;V.splash(Math.min(2.5,mm/8));}
+  if(mode==='shake'&&mm>13)doShake(frameNow);}
+async function enableMotion(){
+  if(motionOn)return;
+  if(typeof DeviceMotionEvent==='undefined'){hint.textContent='No motion sensor here. Switch to Touch or Spin.';return;}
+  try{if(typeof DeviceMotionEvent.requestPermission==='function'){const p=await DeviceMotionEvent.requestPermission();
+      if(p!=='granted'){hint.textContent='Motion access was declined. Close Safari fully and reopen the link to be asked again.';return;}}}
+  catch(err){hint.textContent=embedded?'Motion is blocked because this page is embedded. Open it on its own page.':'Motion request failed: '+err.message;return;}
+  addEventListener('devicemotion',onMotion);motionOn=true;if(mode==='phone')hint.textContent='Waiting for sensor data…';
+  setTimeout(()=>{if(mode==='shake'){shakeHint();return;}if(mode!=='phone')return;hint.textContent=events?'Sensor live. Lock rotation, then tilt and spin your phone. Shake to splash.':
+    (embedded?'No sensor data. This view blocks motion.':'No sensor data. Check Settings, Safari, Motion and Orientation Access.');},1200);}
+
+/* ----- controls ----- */
+const HINTS={drag:'Hold and drag to pull the light toward your finger.',spin:'Drag in a circle to turn it. Double tap to set it upright.',phone:''};
+const $=id=>document.getElementById(id);
+function scatter(v){const s=cellList.slice().sort(()=>Math.random()-.5);for(let i=0;i<v.N;i++){const k=s[i];v.px[i]=k%NC;v.py[i]=k/NC|0;v.vx[i]=v.vy[i]=0;}}
+const TAB_OF={drag:'ocean',spin:'ocean',phone:'ocean',smoke:'smoke',tap:'tap',shake:'shake'};
+let oceanSub='drag';
+function setMode(m){
+  if(mode==='smoke'&&m!=='smoke'){endInhale();stick='out';level=1;}
+  mode=m;omega=0;dragging=null;pull=null;tapDrag=null;auto=null;shakeState=null;touching=false;
+  const tab=TAB_OF[m];if(tab==='ocean')oceanSub=m;
+  document.querySelectorAll('[data-tab]').forEach(x=>x.setAttribute('aria-selected',x.dataset.tab===tab));
+  document.querySelectorAll('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==tab);
+  document.querySelectorAll('[data-mode]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.mode===oceanSub));
+  $('gainRow').hidden=m!=='phone';
+  stage.setAttribute('aria-label',{drag:'LED ocean. Drag to pull the water.',spin:'LED ocean. Drag in a circle or use arrow keys to rotate.',
+    phone:'LED ocean controlled by your phone motion.',shake:'LED ocean. Press space to draw O or X.',smoke:'LED ocean. Hold to inhale.',tap:'Two devices. Press space to bring them together.'}[m]);
+  hint.textContent=HINTS[m]||'';
+  if(m==='phone'||m==='shake')enableMotion();
+  if(m==='shake'){shakeHint();drawHistory();}
+  if(m==='smoke')sessionHint();
+  if(m==='tap'){gap=GAP_REST;seam=0;for(const v of[A,B]){v.gx=0;v.gy=1;v.spawn(TAP_FILL);}tapHint();}
+  else{V.attract=null;V.pin.fill(0);V.spawn(baseFill);}
+}
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>setMode(b.dataset.tab==='ocean'?oceanSub:b.dataset.tab));
+/* finish: arrows either side of the device */
+const FINISHES=['stone','charcoal','cream'],FNAME={stone:'Stone',charcoal:'Charcoal',cream:'Cream'};
+function setFinish(f){finish=f;$('finishName').textContent=FNAME[f];
+  document.querySelectorAll('.pager i').forEach((d,i)=>d.classList.toggle('on',FINISHES[i]===f));
+  $('stage').setAttribute('aria-description','Finish: '+FNAME[f]);}
+function stepFinish(d){setFinish(FINISHES[(FINISHES.indexOf(finish)+d+3)%3]);}
+$('prevFinish').onclick=()=>stepFinish(-1);$('nextFinish').onclick=()=>stepFinish(1);
+$('splash').onclick=()=>V.splash();
+$('gain').oninput=e=>gain=+e.target.value;
+
+/* ===== loop ===== */
+readColors();resize();setMode('drag');setFinish('stone');
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',readColors);
+new ResizeObserver(resize).observe(stage);
+S=fitScale(0,false);
+let last=performance.now();
+function frame(nowMs){
+  const now=nowMs/1000;frameNow=now;const dt=Math.min((nowMs-last)/1000,1/30)||1/60;last=nowMs;
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,Hh);
+  if(mode==='tap'){
+    tapTick(dt,now);
+    for(let s=0;s<3;s++){A.step(dt/3);B.step(dt/3);}
+    A.splatCrisp();B.splatCrisp();
+    const[pa,pb]=tapLayout();
+    drawVessel(A,pa[0],pa[1],THETA_A,S2,false,k=>[1,0,bubbleLight(k,now)]);drawVessel(B,pb[0],pb[1],THETA_A+Math.PI,S2,false,k=>[1,0,bubbleLight(k,now)]);
+
+  }else{
+    let tx,ty;
+    if(mode==='spin'){if(!dragging){angle+=omega*dt;omega*=Math.pow(.15,dt);}}
+    else angle=Math.abs(angle)<.002?0:angle*.85;
+    if(pull){const m=Math.hypot(pull[0],pull[1])||1,dx=pull[0]/m,dy=pull[1]/m,c=Math.cos(angle),sn=Math.sin(angle);tx=dx*c+dy*sn;ty=-dx*sn+dy*c;}
+    else if(mode==='phone')[tx,ty]=phoneG||[0,1];
+    else if(mode==='shake'&&shakeState&&shakeState.phase==='churn'){tx=0;ty=-.08;}   /* weightless while it floats */
+    else{tx=Math.sin(angle);ty=Math.cos(angle);}
+    const f=pull?.35:mode==='spin'?.6:.5;V.gx+=(tx-V.gx)*f;V.gy+=(ty-V.gy)*f;
+    if(mode==='smoke')sessionTick(dt);
+    if(mode==='shake')shakeTick(dt,now);
+    for(let s=0;s<3;s++)V.step(dt/3);
+    if(mode==='shake')V.splatCrisp();else V.splat(look);
+    const withStick=mode==='smoke'&&stick!=='out';
+    S+=(fitScale(angle,mode==='smoke')-S)*.2;
+    drawVessel(V,W/2,Hh/2,angle,S,withStick,mode==='smoke'?sessionFactor:null);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+
+new MutationObserver(()=>document.querySelectorAll('[data-mirror="hint"]').forEach(el=>el.textContent=hint.textContent)).observe(hint,{childList:true,characterData:true,subtree:true});
+</script>
+</body>
+</html>
